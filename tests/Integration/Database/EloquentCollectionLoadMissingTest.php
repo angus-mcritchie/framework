@@ -118,6 +118,47 @@ class EloquentCollectionLoadMissingTest extends DatabaseTestCase
         $this->assertEquals(1, $user->posts[1]->postRelation->postSubRelations[0]->postSubSubRelations->count());
         $this->assertInstanceOf(PostSubSubRelation::class, $user->posts[1]->postRelation->postSubRelations[0]->postSubSubRelations[0]);
     }
+
+    public function testLoadMissingWithNestedArraySyntax()
+    {
+        $posts = Post::with('comments')->get();
+
+        DB::enableQueryLog();
+
+        // Test nested array syntax like ['comments' => ['parent', 'revisions']]
+        $posts->loadMissing([
+            'comments' => ['parent'],
+            'user'
+        ]);
+
+        $this->assertCount(2, DB::getQueryLog()); // Should load 'comments.parent' and 'user'
+        $this->assertTrue($posts[0]->comments[0]->relationLoaded('parent'));
+        $this->assertTrue($posts[0]->relationLoaded('user'));
+    }
+
+    public function testLoadMissingWithComplexNestedArraySyntax()
+    {
+        $posts = Post::all();
+
+        DB::enableQueryLog();
+
+        // Test more complex nested array syntax
+        $posts->loadMissing([
+            'comments' => [
+                'parent' => function ($query) {
+                    $query->select('id', 'parent_id', 'post_id');
+                },
+                'revisions'
+            ],
+            'user:id,name'
+        ]);
+
+        $queryCount = count(DB::getQueryLog());
+        $this->assertGreaterThan(0, $queryCount);
+        $this->assertTrue($posts[0]->relationLoaded('comments'));
+        $this->assertTrue($posts[0]->comments[0]->relationLoaded('parent'));
+        $this->assertTrue($posts[0]->relationLoaded('user'));
+    }
 }
 
 class Comment extends Model

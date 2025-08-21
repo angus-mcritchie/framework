@@ -222,28 +222,30 @@ class Collection extends BaseCollection implements QueueableCollection
             $relations = func_get_args();
         }
 
-        foreach ($relations as $key => $value) {
-            if (is_numeric($key)) {
-                $key = $value;
+        // Use the same parsing logic as load() and with() methods
+        if ($this->isNotEmpty()) {
+            $query = $this->first()->newQueryWithoutRelationships()->with($relations);
+            $parsedRelations = $query->getEagerLoads();
+            
+            foreach ($parsedRelations as $key => $value) {
+                $segments = explode('.', explode(':', $key)[0]);
+
+                if (str_contains($key, ':')) {
+                    $segments[count($segments) - 1] .= ':'.explode(':', $key)[1];
+                }
+
+                $path = [];
+
+                foreach ($segments as $segment) {
+                    $path[] = [$segment => $segment];
+                }
+
+                if (is_callable($value)) {
+                    $path[count($segments) - 1][end($segments)] = $value;
+                }
+
+                $this->loadMissingRelation($this, $path);
             }
-
-            $segments = explode('.', explode(':', $key)[0]);
-
-            if (str_contains($key, ':')) {
-                $segments[count($segments) - 1] .= ':'.explode(':', $key)[1];
-            }
-
-            $path = [];
-
-            foreach ($segments as $segment) {
-                $path[] = [$segment => $segment];
-            }
-
-            if (is_callable($value)) {
-                $path[count($segments) - 1][end($segments)] = $value;
-            }
-
-            $this->loadMissingRelation($this, $path);
         }
 
         return $this;
